@@ -21,7 +21,10 @@ if ! param compare MNT_MODE_IN -1
 then
         if param compare MNT_MODE_OUT 0
         then
-                set MIXER_AUX mount
+		if [ $MIXER_AUX = none ]
+		then
+                	set MIXER_AUX mount
+		fi
         fi
 fi
 
