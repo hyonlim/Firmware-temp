@@ -285,8 +285,8 @@ CollisionPrevention::_addDistanceSensorData(distance_sensor_s &distance_sensor, 
 void
 CollisionPrevention::_adaptSetpointDirection(Vector2f &setpoint_dir, int &setpoint_index, float vehicle_yaw_angle_rad)
 {
-	const float col_prev_d = _param_mpc_col_prev_d.get();
-	const int guidance_bins = floor(_param_mpc_col_prev_cng.get() / INTERNAL_MAP_INCREMENT_DEG);
+	const float col_prev_d = _param_cp_dist.get();
+	const int guidance_bins = floor(_param_cp_guide_ang.get() / INTERNAL_MAP_INCREMENT_DEG);
 	const int sp_index_original = setpoint_index;
 	float best_cost = 9999.f;
 
@@ -323,6 +323,52 @@ CollisionPrevention::_adaptSetpointDirection(Vector2f &setpoint_dir, int &setpoi
 	}
 }
 
+float
+CollisionPrevention::_sensorOrientationToYawOffset(const distance_sensor_s &distance_sensor, float angle_offset) const
+{
+	float offset = angle_offset > 0.0f ? math::radians(angle_offset) : 0.0f;
+
+	switch (distance_sensor.orientation) {
+	case distance_sensor_s::ROTATION_YAW_0:
+		offset = 0.0f;
+		break;
+
+	case distance_sensor_s::ROTATION_YAW_45:
+		offset = M_PI_F / 4.0f;
+		break;
+
+	case distance_sensor_s::ROTATION_YAW_90:
+		offset = M_PI_F / 2.0f;
+		break;
+
+	case distance_sensor_s::ROTATION_YAW_135:
+		offset = 3.0f * M_PI_F / 4.0f;
+		break;
+
+	case distance_sensor_s::ROTATION_YAW_180:
+		offset = M_PI_F;
+		break;
+
+	case distance_sensor_s::ROTATION_YAW_225:
+		offset = -3.0f * M_PI_F / 4.0f;
+		break;
+
+	case distance_sensor_s::ROTATION_YAW_270:
+		offset = -M_PI_F / 2.0f;
+		break;
+
+	case distance_sensor_s::ROTATION_YAW_315:
+		offset = -M_PI_F / 4.0f;
+		break;
+
+	case distance_sensor_s::ROTATION_CUSTOM:
+		offset = matrix::Eulerf(matrix::Quatf(distance_sensor.q)).psi();
+		break;
+	}
+
+	return offset;
+}
+
 void
 CollisionPrevention::_calculateConstrainedSetpoint(Vector2f &setpoint, const Vector2f &curr_pos,
 		const Vector2f &curr_vel)
@@ -330,8 +376,9 @@ CollisionPrevention::_calculateConstrainedSetpoint(Vector2f &setpoint, const Vec
 	_updateObstacleMap();
 
 	// read parameters
-	const float col_prev_d = _param_mpc_col_prev_d.get();
-	const float col_prev_dly = _param_mpc_col_prev_dly.get();
+	const float col_prev_d = _param_cp_dist.get();
+	const float col_prev_dly = _param_cp_delay.get();
+	const bool move_no_data = _param_cp_go_nodata.get() > 0;
 	const float xy_p = _param_mpc_xy_p.get();
 	const float max_jerk = _param_mpc_jerk_max.get();
 	const float max_accel = _param_mpc_acc_hor.get();
@@ -354,7 +401,7 @@ CollisionPrevention::_calculateConstrainedSetpoint(Vector2f &setpoint, const Vec
 							       _obstacle_map_body_frame.angle_offset);
 			int sp_index = floor(sp_angle_with_offset_deg / INTERNAL_MAP_INCREMENT_DEG);
 
-			// change setpoint direction slightly (max by _param_mpc_col_prev_cng degrees) to help guide through narrow gaps
+			// change setpoint direction slightly (max by _param_cp_guide_ang degrees) to help guide through narrow gaps
 			_adaptSetpointDirection(setpoint_dir, sp_index, vehicle_yaw_angle_rad);
 
 			// limit speed for safe flight
@@ -406,7 +453,7 @@ CollisionPrevention::_calculateConstrainedSetpoint(Vector2f &setpoint, const Vec
 						}
 					}
 
-				} else if (_obstacle_map_body_frame.distances[i] == UINT16_MAX && i == sp_index) {
+				} else if (_obstacle_map_body_frame.distances[i] == UINT16_MAX && i == sp_index && (!move_no_data)) {
 					vel_max = 0.f;
 				}
 			}
