@@ -88,6 +88,7 @@ px4_add_romfs_files(
 	4100_tiltquadrotor
 	4250_teal
 	4300_if750
+	4300_if750.post
 	4900_crazyflie
 
 	# [5000, 5999] Quadrotor +"

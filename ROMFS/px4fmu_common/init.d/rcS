@@ -488,14 +488,18 @@ else
 	# Start the logger.
 	#
 	sh /etc/init.d/rc.logging
+	echo "Finished to execute rc.logging"
 
 	#
 	# Set additional parameters and env variables for selected AUTOSTART.
 	#
+	echo "Autostart if"
 	if ! param compare SYS_AUTOSTART 0
 	then
+		echo "Autostart post is executing."
 		sh /etc/init.d/rc.autostart.post
 	fi
+	echo "Autostart end"
 
 	if ! param compare SYS_PARAM_VER ${PARAM_DEFAULTS_VER}
 	then
